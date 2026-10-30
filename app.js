@@ -42,6 +42,7 @@
     hasMore: false,
     lastItemId: null,
     mode: "tag",
+    sortMode: "episode",
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -88,8 +89,12 @@
 
   function clearBanner() { setBanner(""); }
 
-  /* Látható hibakereső sor a lejátszó alatt (ideiglenes). */
+  /* Látható hibakereső sor a lejátszó alatt – csak hiba esetén jelenik meg. */
   var pdebugLines = [];
+  function showPdebug() {
+    var el = $("pdebug");
+    if (el) el.hidden = false;
+  }
   function pdebug(msg) {
     pdebugLines.push(msg);
     if (pdebugLines.length > 6) pdebugLines.shift();
@@ -194,7 +199,13 @@
   function renderResults() {
     var box = $("results");
     box.innerHTML = "";
-    state.results.forEach(function (item) {
+
+    var list = state.results.slice();
+    if (state.sortMode !== "site") {
+      list.sort(function (a, b) { return naturalCompare(a.title, b.title); });
+    }
+
+    list.forEach(function (item) {
       box.appendChild(makeCard(item, openVideo));
     });
 
@@ -203,6 +214,9 @@
     more.hidden = state.results.length === 0 || !state.hasMore;
     more.disabled = state.loading;
     more.textContent = state.loading ? "Betöltés…" : "További találatok";
+
+    var sortbar = $("sortbar");
+    if (sortbar) sortbar.hidden = state.results.length === 0;
   }
 
   function uniqueByVcode(list) {
@@ -215,6 +229,33 @@
       out.push(v);
     });
     return out;
+  }
+
+  /* Természetes rendezés: az "S2 E08" a "S2 E021" elé kerül, mert a számokat
+     számként hasonlítja (a sima ábécé-sorrend az E021-et tenné előre). */
+  function sortKey(s) {
+    return String(s || "").toLowerCase()
+      .replace(/[áàâä]/g, "a").replace(/[éèêë]/g, "e").replace(/[íìîï]/g, "i")
+      .replace(/[óòôöő]/g, "o").replace(/[úùûüű]/g, "u").replace(/ç/g, "c");
+  }
+
+  function naturalCompare(a, b) {
+    var ax = sortKey(a).match(/(\d+|\D+)/g) || [];
+    var bx = sortKey(b).match(/(\d+|\D+)/g) || [];
+    var n = Math.max(ax.length, bx.length);
+    for (var i = 0; i < n; i++) {
+      var av = ax[i], bv = bx[i];
+      if (av === undefined) return -1;
+      if (bv === undefined) return 1;
+      var an = /^\d+$/.test(av), bn = /^\d+$/.test(bv);
+      if (an && bn) {
+        var d = parseInt(av, 10) - parseInt(bv, 10);
+        if (d) return d;
+      } else if (av !== bv) {
+        return av < bv ? -1 : 1;
+      }
+    }
+    return 0;
   }
 
   function searchMode() {
@@ -236,7 +277,6 @@
       state.loading = false;
       state.mode = searchMode();
       $("results").innerHTML = "";
-      $("sortbar").hidden = (state.mode !== "tag");
     }
     if (state.loading) return;
 
@@ -283,7 +323,7 @@
     }
 
     var page = state.nextPage;
-    var sort = ($("sort-select") && $("sort-select").value) || "upload_date";
+    var sort = "upload_date";
 
     state.api.getTagVideos(state.query, sort, page).then(function (res) {
       if (reqId !== state.reqId) return;
@@ -396,6 +436,8 @@
 
     var resetBtn = $("btn-reset");
     if (resetBtn) resetBtn.hidden = true;
+    var dbgEl = $("pdebug");
+    if (dbgEl) dbgEl.hidden = true;
 
     var frame = createPlayerFrame(vcode);
     if (!frame) {
@@ -418,6 +460,7 @@
       setTimeout(function () {
         if (state.current && state.current.vcode === watchdogVideo && !state.playerReady) {
           pdebug("nincs ready 10s után");
+          showPdebug();
           setBanner("A lejátszó nem indult el. Nyomd meg az „Adatok törlése” gombot: " +
             "ez kitakarítja a Videa elakadt állapotát a készüléken.");
           var resetBtn = $("btn-reset");
@@ -449,6 +492,8 @@
 
   function onPlayerKeyError() {
     state.playerKeyError = true;
+    pdebug("kulcs/origin hiba");
+    showPdebug();
     state.lastError = "player: " + describeError({ message: "origin error" });
     setBanner("A lejátszó elutasította az API kulcsot erről a címről (" + location.origin +
       "). Engedélyezd ezt a webhelyet a Videa BEÁLLÍTÁSAIM alatt, a PlayerAPI kulcshoz is.");
@@ -570,15 +615,9 @@
 
     $("btn-more").addEventListener("click", function () { runSearch(false); });
 
-    $("chips").addEventListener("click", function (e) {
-      var btn = e.target && e.target.closest ? e.target.closest("button[data-tag]") : null;
-      if (!btn) return;
-      $("search-input").value = btn.getAttribute("data-tag");
-      runSearch(true);
-    });
-
     $("sort-select").addEventListener("change", function () {
-      if (state.query) runSearch(true);
+      state.sortMode = $("sort-select").value;
+      renderResults();
     });
 
     $("btn-back").addEventListener("click", function () { go("search"); });

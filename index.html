@@ -69,29 +69,11 @@
       <button type="submit">Keresés</button>
     </form>
 
-    <div id="chips" class="chips">
-      <button type="button" data-tag="zene">zene</button>
-      <button type="button" data-tag="film">film</button>
-      <button type="button" data-tag="magyar">magyar</button>
-      <button type="button" data-tag="vicces">vicces</button>
-      <button type="button" data-tag="sport">sport</button>
-      <button type="button" data-tag="foci">foci</button>
-      <button type="button" data-tag="anime">anime</button>
-      <button type="button" data-tag="trailer">trailer</button>
-      <button type="button" data-tag="batman">batman</button>
-      <button type="button" data-tag="kutya">kutya</button>
-      <button type="button" data-tag="macska">macska</button>
-      <button type="button" data-tag="recept">recept</button>
-      <button type="button" data-tag="auto">autó</button>
-      <button type="button" data-tag="jatek">játék</button>
-    </div>
-
     <div id="sortbar" class="sortbar" hidden>
       <span>Rendezés</span>
       <select id="sort-select">
-        <option value="upload_date">legújabb</option>
-        <option value="view_count">legnézettebb</option>
-        <option value="title">cím szerint</option>
+        <option value="episode">epizód / cím szerint</option>
+        <option value="site">a Videa sorrendje</option>
       </select>
     </div>
 
@@ -121,7 +103,7 @@
         <span id="np-duration">0:00</span>
       </div>
 
-      <div id="pdebug" class="pdebug">lejátszó: –</div>
+      <div id="pdebug" class="pdebug" hidden>lejátszó: –</div>
 
       <div class="actions">
         <button id="btn-fav" class="btn">☆ Kedvencekhez</button>
