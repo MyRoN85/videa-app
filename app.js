@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v26 · 2026-10-30 (végleges)";
+  var BUILD = "v27 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -91,12 +91,19 @@
     hideShort: load("videa.hideShort", true),
     recoveryAttempts: 0,
     frameLoaded: false,
+    lastPlayingFlag: false,
+    nextItem: null,
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
     history: load("videa.history", []),
     pollTimer: null,
     lastError: null
+  };
+
+  // A natív réteg hívja, amikor kép-a-képben módba váltunk.
+  window.__setPip = function (on) {
+    document.body.classList.toggle("pip", !!on);
   };
 
   // ------------------------------------------------------------- segédfüggvények
@@ -468,6 +475,7 @@
     addHistory(state.current);
     updateFavButton();
     state.recoveryAttempts = 0;
+    updateNextButton(item);
     go("player");
     ensurePlayer(item.vcode);
   }
@@ -499,6 +507,19 @@
     if (slot && slot.parentNode === wrap) wrap.removeChild(slot);
 
     wrap.appendChild(frame);
+
+    // Láthatatlan réteg a videó fölött: koppintásra play/pause.
+    var tap = document.createElement("div");
+    tap.className = "player-tap";
+    tap.addEventListener("click", function () {
+      if (!state.player || !state.playerReady) return;
+      try {
+        if (state.player.isPlaying()) state.player.pauseVideo();
+        else state.player.playVideo();
+      } catch (e) { /* ignore */ }
+    });
+    wrap.appendChild(tap);
+
     return frame;
   }
 
@@ -512,6 +533,13 @@
     state.player = null;
     state.playerReady = false;
     state.frameLoaded = false;
+
+    if (state.lastPlayingFlag) {
+      state.lastPlayingFlag = false;
+      if (window.FilmezzNative && window.FilmezzNative.setPlaying) {
+        try { window.FilmezzNative.setPlaying(false); } catch (e) { /* ignore */ }
+      }
+    }
 
     if (state.pollTimer) {
       clearInterval(state.pollTimer);
@@ -667,6 +695,63 @@
 
     var pct = d > 0 ? Math.min(100, (t / d) * 100) : 0;
     $("np-progress-fill").style.width = pct + "%";
+
+    // A natív rétegnek jelezzük, hogy megy-e a lejátszás (PiP-hez kell).
+    if (window.FilmezzNative && window.FilmezzNative.setPlaying) {
+      var flag = !!playing;
+      if (state.lastPlayingFlag !== flag) {
+        state.lastPlayingFlag = flag;
+        try { window.FilmezzNative.setPlaying(flag); } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  /* A következő rész megkeresése az aktuális találati listában:
+     ugyanaz a sorozat, és az évad/rész szerint a következő. */
+  function findNextEpisode(item) {
+    if (!window.VideaSort || !state.results.length) return null;
+
+    var key = window.VideaSort.series(item.title);
+    var current = window.VideaSort.episode(item.title);
+    if (!current) return null;
+
+    var best = null;
+    var bestScore = null;
+
+    state.results.forEach(function (it) {
+      if (!it || it.vcode === item.vcode) return;
+      if (window.VideaSort.series(it.title) !== key) return;
+
+      var ep = window.VideaSort.episode(it.title);
+      if (!ep) return;
+      if (ep[0] < current[0]) return;
+      if (ep[0] === current[0] && ep[1] <= current[1]) return;
+
+      var score = ep[0] * 10000 + ep[1];
+      if (bestScore === null || score < bestScore) {
+        bestScore = score;
+        best = it;
+      }
+    });
+
+    return best;
+  }
+
+  function updateNextButton(item) {
+    var btn = $("btn-next");
+    if (!btn) return;
+
+    state.nextItem = findNextEpisode(item);
+    if (!state.nextItem) {
+      btn.hidden = true;
+      return;
+    }
+
+    var ep = window.VideaSort ? window.VideaSort.episode(state.nextItem.title) : null;
+    btn.textContent = ep
+      ? "▶ Következő rész: S" + ep[0] + " E" + ep[1]
+      : "▶ Következő rész";
+    btn.hidden = false;
   }
 
   function updateFavButton() {
@@ -789,6 +874,10 @@
 
     $("btn-retry").addEventListener("click", function () {
       if (state.current) ensurePlayer(state.current.vcode);
+    });
+
+    $("btn-next").addEventListener("click", function () {
+      if (state.nextItem) openVideo(state.nextItem);
     });
     $("btn-reload").addEventListener("click", function () { location.reload(); });
 

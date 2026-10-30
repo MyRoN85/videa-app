@@ -308,6 +308,47 @@ body {
   border: 0;
 }
 
+/* A videó területére tett láthatatlan réteg: koppintásra play/pause.
+   Az alsó sáv (vezérlők) szabadon marad. */
+.player-tap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 22%;
+  z-index: 3;
+  background: transparent;
+}
+
+.btn.next {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+}
+
+/* Kép a képben (PiP) mód: csak a lejátszó látszik */
+body.pip .topbar,
+body.pip .tabbar,
+body.pip .nowplaying,
+body.pip #btn-next,
+body.pip #banner,
+body.pip #pdebug { display: none !important; }
+
+body.pip .view { padding: 0 !important; }
+body.pip .player-wrap {
+  max-width: none;
+  max-height: none;
+  height: 100vh;
+  aspect-ratio: auto;
+  border-radius: 0;
+  margin: 0;
+}
+
 .nowplaying { padding-top: 14px; }
 .nowplaying h1 {
   font-size: 17px;
