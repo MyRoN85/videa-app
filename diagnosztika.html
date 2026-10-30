@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Videa API diagnosztika</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; padding: 16px 16px 40px;
+    background: #0b0d12; color: #e9edf5;
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: #8b95a7; margin: 26px 0 8px; }
+  p { margin: 6px 0; }
+  .muted { color: #8b95a7; font-size: 13.5px; }
+  .box { background: #151922; border-radius: 12px; padding: 12px 14px; margin: 8px 0; }
+  .origin { font-size: 17px; font-weight: 700; word-break: break-all; color: #ff9a6c; }
+  button {
+    background: #ff5a1f; color: #fff; border: 0; border-radius: 10px;
+    padding: 11px 16px; font-size: 15px; font-weight: 600; margin: 4px 6px 4px 0; cursor: pointer;
+  }
+  button.ghost { background: #1d2330; border: 1px solid #2a3346; }
+  input {
+    width: 100%; box-sizing: border-box; background: #151922; color: #e9edf5;
+    border: 1px solid #242c3b; border-radius: 10px; padding: 12px 14px; font-size: 16px;
+  }
+  pre {
+    background: #151922; border: 1px solid #242c3b; border-radius: 10px;
+    padding: 12px; overflow-x: auto; font-size: 12.5px; line-height: 1.45;
+    white-space: pre-wrap; word-break: break-word; max-height: 320px;
+  }
+  .ok  { color: #3ddc84; }
+  .bad { color: #ff5252; }
+  #player-slot { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+  #player-slot iframe { width: 100%; height: 100%; border: 0; display: block; }
+</style>
+</head>
+<body>
+
+<h1>Videa API diagnosztika</h1>
+<p class="muted">Ez az oldal megmutatja, hogy a kulcsaid működnek-e <em>erről</em> a címről.</p>
+
+<h2>1. Erről a webhelyről töltődött be</h2>
+<div class="box">
+  <div class="origin" id="origin">…</div>
+  <p class="muted" style="margin-top:8px">Pontosan ezt a címet kell megadnod a Videa
+    <strong>BEÁLLÍTÁSAIM</strong> oldalán, mindkét API kulcshoz.</p>
+  <button id="copy">Origin másolása</button>
+</div>
+
+<h2>2. OpenAPI – keresés</h2>
+<div class="box">
+  <input id="q" value="batman" autocapitalize="off">
+  <div style="margin-top:8px">
+    <button id="search">Keresés indítása</button>
+  </div>
+  <p id="search-status" class="muted">még nem futott</p>
+  <pre id="search-out">–</pre>
+</div>
+
+<h2>3. PlayerAPI – lejátszó</h2>
+<div class="box">
+  <input id="vcode" value="zsvvv9x4J0lTzBUT" autocapitalize="off">
+  <div style="margin-top:8px">
+    <button id="play">Lejátszó betöltése</button>
+  </div>
+  <p id="player-status" class="muted">még nem futott</p>
+  <div id="player-slot"></div>
+</div>
+
+<h2>Napló</h2>
+<pre id="log">–</pre>
+
+<script>
+  // ---- kulcsok ----
+  var OPEN_KEY = "AGYLdbkyMeWhPkF0";
+  var PLAYER_KEY = "00mGAFYJo5Q8IrE3";
+
+  var logLines = [];
+  function log(msg) {
+    logLines.push(new Date().toLocaleTimeString() + "  " + msg);
+    document.getElementById("log").textContent = logLines.join("\n");
+  }
+
+  document.getElementById("origin").textContent = location.origin;
+
+  document.getElementById("copy").addEventListener("click", function () {
+    navigator.clipboard.writeText(location.origin).then(function () {
+      log("origin a vágólapra másolva: " + location.origin);
+    }, function () {
+      log("a vágólapra másolás nem engedélyezett");
+    });
+  });
+
+  window.__openReady = function () {
+    log("OpenAPI betöltve");
+    window.videaApi = new VIDEA.VideaOpenAPI();
+    document.getElementById("search-status").textContent = "OpenAPI kész – indíthatod a keresést";
+  };
+
+  window.__playerReady = function () {
+    log("PlayerAPI betöltve");
+  };
+
+  document.getElementById("search").addEventListener("click", function () {
+    var q = document.getElementById("q").value.trim();
+    var out = document.getElementById("search-out");
+    var status = document.getElementById("search-status");
+    if (!window.videaApi) {
+      status.textContent = "az OpenAPI még nem töltődött be";
+      status.className = "bad";
+      return;
+    }
+    status.textContent = "kérés fut…";
+    status.className = "muted";
+    window.videaApi.searchVideos(q, 1).then(function (res) {
+      status.textContent = "SIKER – " + res.totalhits + " találat, ebből " + res.videos.length + " jött vissza";
+      status.className = "ok";
+      out.textContent = JSON.stringify({
+        cmd: res.cmd, offset: res.offset, hits: res.hits, totalhits: res.totalhits,
+        first: res.videos[0]
+      }, null, 2);
+      log("keresés OK: " + q + " (" + res.totalhits + ")");
+    }, function (err) {
+      status.textContent = "HIBA – " + err.message;
+      status.className = "bad";
+      out.textContent = String(err.message);
+      log("keresés HIBA: " + err.message);
+    });
+  });
+
+  document.getElementById("play").addEventListener("click", function () {
+    var vcode = document.getElementById("vcode").value.trim();
+    var status = document.getElementById("player-status");
+    if (typeof VIDEA === "undefined") {
+      status.textContent = "a PlayerAPI még nem töltődött be";
+      status.className = "bad";
+      return;
+    }
+    status.textContent = "lejátszó létrehozása…";
+    status.className = "muted";
+
+    var slot = document.getElementById("player-slot");
+    slot.innerHTML = '<div id="ps2"></div>';
+    try {
+      window.__p = new VIDEA.VideaPlayer({
+        divToLoad: "ps2",
+        width: "480",
+        height: "270",
+        videoId: vcode,
+        events: {
+          onReady: function () {
+            status.textContent = "SIKER – a lejátszó kész";
+            status.className = "ok";
+            log("lejátszó kész");
+            window.__p.playVideo();
+          },
+          onKeyError: function () {
+            status.textContent = "HIBA – a lejátszó elutasította a kulcsot/origint";
+            status.className = "bad";
+            log("lejátszó kulcshiba (origin error)");
+          }
+        }
+      });
+    } catch (e) {
+      status.textContent = "kivétel: " + e.message;
+      status.className = "bad";
+    }
+  });
+</script>
+
+<script async defer
+  src="https://videa.hu/static/api/open_api_v1.0.2.js?key=AGYLdbkyMeWhPkF0&callback=__openReady"></script>
+<script async defer
+  src="https://videa.hu/static/api/player_api_v1.0.3.js?key=00mGAFYJo5Q8IrE3&callback=__playerReady"></script>
+
+</body>
+</html>

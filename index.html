@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Videa</title>
+<link rel="stylesheet" href="styles.css">
+
+<!--
+  ============================================================
+  FONTOS: az API kulcsok két helyen szerepelnek ebben a fájlban!
+    1) a window.VIDEA_KEYS objektumban (ez az app.js-nek kell)
+    2) a lenti két <script src="..."> címében (ezt az API olvassa)
+  Kulcscsere esetén MINDKETTŐT módosítani kell.
+  Az OpenAPI és a PlayerAPI kulcsa NEM azonos, ne cseréld fel őket.
+  ============================================================
+-->
+<script>
+  window.VIDEA_KEYS = {
+    open:   "AGYLdbkyMeWhPkF0",   // OpenAPI kulcs
+    player: "00mGAFYJo5Q8IrE3"    // PlayerAPI kulcs
+  };
+
+  /* A két API a betöltés végén azonnal meghívja ezeket a függvényeket,
+     ezért itt, a script tagek előtt kell létezniük. */
+  window.__videaOpenReady = function () {
+    try {
+      window.videaApi = new VIDEA.VideaOpenAPI();
+    } catch (e) {
+      window.__videaOpenInitError = String(e);
+    }
+    window.dispatchEvent(new Event("videa-openapi-ready"));
+  };
+  window.__videaPlayerReady = function () {
+    window.dispatchEvent(new Event("videa-playerapi-ready"));
+  };
+</script>
+
+<script defer src="app.js"></script>
+
+<script async defer
+  src="https://videa.hu/static/api/open_api_v1.0.2.js?key=AGYLdbkyMeWhPkF0&callback=__videaOpenReady"></script>
+<script async defer
+  src="https://videa.hu/static/api/player_api_v1.0.3.js?key=00mGAFYJo5Q8IrE3&callback=__videaPlayerReady"></script>
+</head>
+
+<body>
+<header class="topbar">
+  <span class="brand">Videa</span>
+  <span class="origin" id="origin-label" title="Ezt a címet kell engedélyezni a Videa beállításaiban"></span>
+</header>
+
+<main id="main">
+
+  <!-- ============ KERESÉS ============ -->
+  <section id="view-search" class="view">
+    <form id="search-form" class="searchbar" role="search">
+      <input id="search-input" type="search" placeholder="Keresés a Videán…"
+             autocomplete="off" autocapitalize="off" enterkeyhint="search">
+      <button type="submit">Keresés</button>
+    </form>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <div id="empty" class="empty">
+      Keress rá valamire – pl. <em>batman</em>, <em>kardhal</em>, <em>zene</em>.
+    </div>
+
+    <div id="results" class="results"></div>
+
+    <button id="btn-more" class="more" hidden>További találatok</button>
+  </section>
+
+  <!-- ============ LEJÁTSZÓ ============ -->
+  <section id="view-player" class="view" hidden>
+    <div class="player-wrap"><div id="player-slot"></div></div>
+
+    <div class="nowplaying">
+      <h1 id="np-title">Betöltés…</h1>
+      <p id="np-channel" class="muted"></p>
+
+      <div class="progress"><div id="np-progress-fill" class="progress-fill"></div></div>
+      <div class="timeline">
+        <span id="np-time">0:00</span>
+        <span id="np-state" class="muted">–</span>
+        <span id="np-duration">0:00</span>
+      </div>
+
+      <div class="actions">
+        <button id="btn-fav" class="btn">☆ Kedvencekhez</button>
+        <button id="btn-open-web" class="btn ghost">Megnyitás a Videán</button>
+      </div>
+
+      <button id="btn-back" class="link">← Vissza a kereséshez</button>
+    </div>
+  </section>
+
+  <!-- ============ KÖNYVTÁR ============ -->
+  <section id="view-lib" class="view" hidden>
+    <h2>Kedvencek</h2>
+    <div id="fav-list" class="results"></div>
+    <p id="fav-empty" class="empty">Még nincs kedvenced. A lejátszó alatt tudod hozzáadni.</p>
+
+    <h2>Előzmények</h2>
+    <div id="history-list" class="results"></div>
+    <p id="history-empty" class="empty">Még nem néztél meg videót.</p>
+    <button id="btn-clear-history" class="link">Előzmények törlése</button>
+  </section>
+
+  <!-- ============ INFÓ ============ -->
+  <section id="view-info" class="view" hidden>
+    <h2>Állapot</h2>
+    <dl class="kv">
+      <dt>Oldal eredete (origin)</dt><dd id="info-origin">–</dd>
+      <dt>OpenAPI</dt><dd id="info-open">–</dd>
+      <dt>PlayerAPI</dt><dd id="info-player">–</dd>
+      <dt>Utolsó hiba</dt><dd id="info-error">–</dd>
+    </dl>
+
+    <h2>Ha „origin error” jön</h2>
+    <p class="muted">
+      A Videa csak arról a webhelyről engedi az API-t, amit a fiókodban rögzítettél.
+      Jelentkezz be a videára, nyisd meg a <strong>BEÁLLÍTÁSAIM</strong> menüpontot,
+      és ott add hozzá a fenti <em>origint</em> – mindkét kulcshoz.
+    </p>
+
+    <h2>Ha „appId invalid” jön</h2>
+    <p class="muted">
+      Ilyenkor a kérés nem is jutott el azonosítható webhelyről (pl. helyi fájlból nyitottad meg),
+      vagy elgépelt a kulcs.
+    </p>
+
+    <button id="btn-reload" class="btn ghost">Újratöltés</button>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tab active" data-view="search">Keresés</button>
+  <button class="tab" data-view="lib">Könyvtár</button>
+  <button class="tab" data-view="info">Infó</button>
+</nav>
+
+</body>
+</html>
