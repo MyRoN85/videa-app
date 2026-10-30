@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v25 · 2026-10-30";
+  var BUILD = "v26 · 2026-10-30 (végleges)";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -865,21 +865,9 @@
     refreshInfo();
     restoreBackup();
 
-    // Élő állapotsor a lejátszó képernyőn – diagnosztikához.
-    var heartbeat = 0;
-    setInterval(function () {
-      var view = $("view-player");
-      if (!view || view.hidden) return;
-      heartbeat++;
-      var el = $("pdebug");
-      if (!el) return;
-      el.hidden = false;
-      el.textContent = "mp:" + heartbeat +
-        " | ready:" + (state.playerReady ? "1" : "0") +
-        " | player:" + (state.player ? "van" : "nincs") +
-        " | iframe:" + (document.querySelector(".player-wrap iframe") ? "van" : "nincs") +
-        (pdebugLines.length ? " | " + pdebugLines[pdebugLines.length - 1] : "");
-    }, 1000);
+    // Hibakereső sor: csak hiba esetén jelenik meg magától, vagy ha a cím
+    // végére ?debug=1 kerül.
+    if (location.search.indexOf("debug") >= 0) showPdebug();
     if ("serviceWorker" in navigator && location.protocol === "https:") {
       window.addEventListener("load", function () {
         navigator.serviceWorker.register("sw.js").catch(function () { /* csendben */ });
