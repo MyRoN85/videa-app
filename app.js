@@ -394,6 +394,9 @@
 
     destroyPlayer();
 
+    var resetBtn = $("btn-reset");
+    if (resetBtn) resetBtn.hidden = true;
+
     var frame = createPlayerFrame(vcode);
     if (!frame) {
       setBanner("Nem találom a lejátszó helyét (.player-wrap).");
@@ -415,6 +418,10 @@
       setTimeout(function () {
         if (state.current && state.current.vcode === watchdogVideo && !state.playerReady) {
           pdebug("nincs ready 10s után");
+          setBanner("A lejátszó nem indult el. Nyomd meg az „Adatok törlése” gombot: " +
+            "ez kitakarítja a Videa elakadt állapotát a készüléken.");
+          var resetBtn = $("btn-reset");
+          if (resetBtn) resetBtn.hidden = false;
         }
       }, 10000);
     } catch (e) {
@@ -582,11 +589,28 @@
     });
     $("btn-reload").addEventListener("click", function () { location.reload(); });
 
+    $("btn-reset").addEventListener("click", function () {
+      if (window.FilmezzNative && window.FilmezzNative.hardReset) {
+        setBanner("Takarítás és újratöltés…", "ok");
+        window.FilmezzNative.hardReset();
+      } else {
+        // Böngészőben nincs mély takarítás – csak újratöltünk
+        location.reload();
+      }
+    });
+
     $("btn-open-web").addEventListener("click", function () {
       var url = "";
       try { url = (state.player && state.player.getVideoUrl()) || ""; } catch (e) { /* ignore */ }
       if (!url && state.current) url = "https://videa.hu/player?v=" + state.current.vcode;
-      window.open(url, "_blank", "noopener");
+
+      // Az appban minden külső navigáció blokkolva van, ezért itt kérjük
+      // a natív rétegtől, hogy nyissa meg a rendszer böngészőjében.
+      if (window.FilmezzNative && window.FilmezzNative.openExternal) {
+        window.FilmezzNative.openExternal(url);
+      } else {
+        window.open(url, "_blank", "noopener");
+      }
     });
 
     $("btn-clear-history").addEventListener("click", function () {
