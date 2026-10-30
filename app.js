@@ -330,6 +330,31 @@
     else runTagSearch(reqId);
   }
 
+  /* A Videa az első oldalon jellemzően az új évadokat adja. Sorozatnál
+     ezért csendben betöltünk még pár oldalt, hogy az 1. évad is bekerüljön,
+     és utána az egészet évad/rész szerint rendezzük. */
+  function autoLoadMore(pages) {
+    if (state.mode !== "search" || pages <= 0 || !state.hasMore) return;
+
+    var reqId = (state.reqId = (state.reqId || 0) + 1);
+    state.loading = true;
+
+    window.VideaSearch.search(state.query, state.lastItemId).then(function (res) {
+      if (reqId !== state.reqId) return;
+      state.results = uniqueByVcode(state.results.concat(res.items));
+      state.lastItemId = res.lastItemId;
+      state.hasMore = res.items.length > 0;
+      state.loading = false;
+      renderResults();
+      log("auto oldal", pages - 1, "maradt");
+      autoLoadMore(pages - 1);
+    }, function () {
+      if (reqId !== state.reqId) return;
+      state.loading = false;
+      renderResults();
+    });
+  }
+
   /* Valódi szabadszavas keresés a videa.hu saját keresőjén (proxy szükséges). */
   function runSiteSearch(reqId) {
     window.VideaSearch.search(state.query, state.lastItemId).then(function (res) {
@@ -340,6 +365,9 @@
       state.loading = false;
       renderResults();
       log("site ok", state.query, "got", res.items.length);
+
+      // csak az első oldal után töltünk utána
+      if (state.results.length <= 40) autoLoadMore(2);
     }, function (err) {
       if (reqId !== state.reqId) return;
       state.loading = false;

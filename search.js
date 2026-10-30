@@ -10,7 +10,11 @@
 (function (root) {
   "use strict";
 
-  var PROXY_BASE = "";   // pl. "https://videa-proxy.myron85.workers.dev/?url="
+  // A proxy címe. A saját Vercel-függvény ugyanarról a címről érhető el,
+  // így nincs CORS-gond; más címről (pl. GitHub Pages) a Vercel címét hívjuk.
+  var PROXY_BASE = (typeof location !== "undefined" && location.hostname === "videa-app.vercel.app")
+    ? "/api/search?url="
+    : "https://videa-app.vercel.app/api/search?url=";
 
   var LAZY = "https://videa.hu/lazy/kereses/";
 

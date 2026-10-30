@@ -57,7 +57,7 @@
       .replace(/\s+/g, " ")
       .trim()
       .split(" ")
-      .slice(0, 4)
+      .slice(0, 2)
       .join(" ");
   }
 
