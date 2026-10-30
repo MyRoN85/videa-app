@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v23 · 2026-10-30";
+  var BUILD = "v24 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -831,6 +831,13 @@
         ensurePlayer(v);
       }
     });
+
+    // Ha a PlayerAPI már betöltődött, mire ez a kód lefut (gyorsítótárból
+    // azonnal jön), az eseménye elveszne – ezért külön is ellenőrizzük.
+    if (window.VIDEA && typeof window.VIDEA.VideaPlayer === "function") {
+      state.playerApiLoaded = true;
+      log("playerapi már betöltve");
+    }
 
     if (window.videaApi) state.api = window.videaApi;
 
