@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v29 · 2026-10-30";
+  var BUILD = "v30 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -823,11 +823,23 @@
       return;
     }
 
-    // 2) ha ott nincs, keressük rá a sorozat nevére a Videán
+    // 2) ha ott nincs, keressük rá a Videán. A puszta sorozatnévre a Videa
+    //    gyakran semmit nem ad, a teljes címre viszont igen – ezért több
+    //    kifejezést próbálunk, amíg találunk következő részt.
     if (!window.VideaSearch || !window.VideaSearch.hasProxy()) return;
 
-    var query = seriesQuery(item.title);
-    if (!query || query.length < 2) return;
+    var candidates = [];
+    var fullTitle = String(item.title || "").trim();
+    if (fullTitle) candidates.push(fullTitle);
+
+    var base = seriesQuery(item.title);
+    var curEp = window.VideaSort ? window.VideaSort.episode(item.title) : null;
+    if (base && base.length >= 2) {
+      if (curEp) candidates.push(base + " S" + curEp[0]);
+      candidates.push(base);
+    }
+
+    if (!candidates.length) return;
 
     var head = document.createElement("h3");
     head.textContent = "Következő részek keresése…";
@@ -836,23 +848,34 @@
 
     var token = (state.nextReq = (state.nextReq || 0) + 1);
 
-    window.VideaSearch.search(query, null).then(function (res) {
-      if (token !== state.nextReq) return;
-
-      state.extraPool = (state.extraPool || []).concat(res.items || []);
-
-      var more = findNextEpisodes(item, 3, episodePool());
-      if (!more.length) {
+    function tryNext(index) {
+      if (index >= candidates.length) {
         box.innerHTML = "";
         box.hidden = true;
         return;
       }
-      renderNextList(box, more);
-    }, function () {
-      if (token !== state.nextReq) return;
-      box.innerHTML = "";
-      box.hidden = true;
-    });
+
+      window.VideaSearch.search(candidates[index], null).then(function (res) {
+        if (token !== state.nextReq) return;
+
+        state.extraPool = (state.extraPool || []).concat(res.items || []);
+        if (state.extraPool.length > 300) {
+          state.extraPool = state.extraPool.slice(-300);
+        }
+
+        var more = findNextEpisodes(item, 3, episodePool());
+        if (more.length) {
+          renderNextList(box, more);
+          return;
+        }
+        tryNext(index + 1);
+      }, function () {
+        if (token !== state.nextReq) return;
+        tryNext(index + 1);
+      });
+    }
+
+    tryNext(0);
   }
 
   function updateFavButton() {
