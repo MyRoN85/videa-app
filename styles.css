@@ -14,6 +14,9 @@
 
 * { box-sizing: border-box; }
 
+/* A display:flex/block felülírná a hidden attribútumot, ezért kell ez a szabály. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -247,11 +250,13 @@ body {
 .player-wrap {
   position: relative;
   width: 100%;
+  max-width: 1000px;
+  margin: 4px auto 0;
   aspect-ratio: 16 / 9;
+  max-height: 62vh;
   background: #000;
   border-radius: var(--radius);
   overflow: hidden;
-  margin-top: 4px;
 }
 .player-wrap iframe {
   position: absolute;
