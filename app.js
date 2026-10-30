@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v28 · 2026-10-30";
+  var BUILD = "v29 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -93,6 +93,7 @@
     frameLoaded: false,
     lastPlayingFlag: false,
     nextItem: null,
+    extraPool: [],
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -706,10 +707,38 @@
     }
   }
 
+  /* Az összes ismert epizód: találatok + előzmények + kedvencek + korábbi
+     sorozat-keresések. Könyvtárból indítva is legyen honnan "következőt" venni. */
+  function episodePool() {
+    var pool = [];
+    var seen = {};
+
+    [state.results, state.history, state.favorites, state.extraPool].forEach(function (list) {
+      (list || []).forEach(function (it) {
+        if (!it || !it.vcode || seen[it.vcode]) return;
+        seen[it.vcode] = true;
+        pool.push(it);
+      });
+    });
+
+    return pool;
+  }
+
+  /* A sorozat neve a címből (epizód-jelölő előtti rész), kereséshez. */
+  function seriesQuery(title) {
+    var t = String(title || "");
+    var cut = t.search(/\b(S\s*\d+\s*E\s*\d+|\d+\s*[xX]\s*\d+|\d+\s*\.\s*(?:évad|evad|rész|resz|fejezet)|\bEp\.?\s*\d+)/i);
+    var base = cut > 0 ? t.slice(0, cut) : t;
+    return base.replace(/[\s\-–—:|]+$/, "").trim();
+  }
+
   /* A következő részek megkeresése az aktuális találati listában:
      ugyanaz a sorozat, évad/rész szerint növekvő sorrendben. */
-  function findNextEpisodes(item, limit) {
-    if (!window.VideaSort || !state.results.length) return [];
+  function findNextEpisodes(item, limit, pool) {
+    if (!window.VideaSort) return [];
+
+    var source = pool || state.results;
+    if (!source || !source.length) return [];
 
     var key = window.VideaSort.series(item.title);
     var current = window.VideaSort.episode(item.title);
@@ -717,7 +746,7 @@
 
     var found = [];
 
-    state.results.forEach(function (it) {
+    source.forEach(function (it) {
       if (!it || it.vcode === item.vcode) return;
       if (window.VideaSort.series(it.title) !== key) return;
 
@@ -744,19 +773,8 @@
     return out.slice(0, limit);
   }
 
-  /* A "Vissza a kereséshez" alatt felsorolt következő részek. */
-  function updateNextButton(item) {
-    var box = $("next-list");
-    if (!box) return;
-
+  function renderNextList(box, list) {
     box.innerHTML = "";
-    var list = findNextEpisodes(item, 3);
-
-    if (!list.length) {
-      box.hidden = true;
-      state.nextItem = null;
-      return;
-    }
 
     var head = document.createElement("h3");
     head.textContent = "Következő részek";
@@ -786,6 +804,55 @@
 
     box.hidden = false;
     state.nextItem = list[0];
+  }
+
+  /* A "Vissza a kereséshez" alatt felsorolt következő részek. */
+  function updateNextButton(item) {
+    var box = $("next-list");
+    if (!box) return;
+
+    box.innerHTML = "";
+    box.hidden = true;
+    state.nextItem = null;
+
+    // 1) először a már ismert listákból
+    var pool = episodePool();
+    var list = findNextEpisodes(item, 3, pool);
+    if (list.length) {
+      renderNextList(box, list);
+      return;
+    }
+
+    // 2) ha ott nincs, keressük rá a sorozat nevére a Videán
+    if (!window.VideaSearch || !window.VideaSearch.hasProxy()) return;
+
+    var query = seriesQuery(item.title);
+    if (!query || query.length < 2) return;
+
+    var head = document.createElement("h3");
+    head.textContent = "Következő részek keresése…";
+    box.appendChild(head);
+    box.hidden = false;
+
+    var token = (state.nextReq = (state.nextReq || 0) + 1);
+
+    window.VideaSearch.search(query, null).then(function (res) {
+      if (token !== state.nextReq) return;
+
+      state.extraPool = (state.extraPool || []).concat(res.items || []);
+
+      var more = findNextEpisodes(item, 3, episodePool());
+      if (!more.length) {
+        box.innerHTML = "";
+        box.hidden = true;
+        return;
+      }
+      renderNextList(box, more);
+    }, function () {
+      if (token !== state.nextReq) return;
+      box.innerHTML = "";
+      box.hidden = true;
+    });
   }
 
   function updateFavButton() {
