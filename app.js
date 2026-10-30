@@ -525,26 +525,32 @@
     wrap.innerHTML = "";
   }
 
-  /* Ha a lejátszó 10 mp alatt nem lesz kész: egyszer újraépítjük, utána
-     (ha kell) takarítunk és újratöltünk – ne a felhasználónak kelljen. */
+  /* Ha a lejátszó 8 mp alatt nem lesz kész:
+       1. sütik + gyorsítótár törlése és újratöltés (a lista megmarad),
+       2. ha úgy sem megy: teljes takarítás.
+     Így nem a felhasználónak kell nyomkodnia. */
   function scheduleWatchdog(vcode) {
     setTimeout(function () {
       if (!state.current || state.current.vcode !== vcode) return;
       if (state.playerReady) return;
 
-      state.recoveryAttempts = (state.recoveryAttempts || 0) + 1;
-      pdebug("nincs ready (" + state.recoveryAttempts + ")");
+      // A próbálkozások száma túlél egy újratöltést is (localStorage),
+      // különben végtelen "süti törlés" ciklusba esnénk.
+      var attempts = Number(load("videa.recovery", 0)) + 1;
+      save("videa.recovery", attempts);
+      state.recoveryAttempts = attempts;
+      pdebug("nincs ready (" + attempts + ")");
+      showPdebug();
 
-      if (state.recoveryAttempts === 1) {
-        ensurePlayer(vcode);
-        scheduleWatchdog(vcode);
+      if (attempts === 1 && window.FilmezzNative &&
+          window.FilmezzNative.clearVideaSession) {
+        setBanner("A lejátszó elakadt – sütik törlése és újratöltés…", "ok");
+        window.FilmezzNative.clearVideaSession();
         return;
       }
 
-      showPdebug();
-
       if (window.FilmezzNative && window.FilmezzNative.hardReset) {
-        setBanner("A lejátszó elakadt – takarítás és újratöltés…", "ok");
+        setBanner("A lejátszó elakadt – teljes takarítás és újratöltés…", "ok");
         window.FilmezzNative.hardReset();
         return;
       }
@@ -552,7 +558,7 @@
       setBanner("A lejátszó nem indult el. Nyomd meg az „Adatok törlése” gombot.");
       var resetBtn = $("btn-reset");
       if (resetBtn) resetBtn.hidden = false;
-    }, 10000);
+    }, 8000);
   }
 
   function ensurePlayer(vcode) {
@@ -595,6 +601,7 @@
   function onPlayerReady() {
     state.playerReady = true;
     state.recoveryAttempts = 0;
+    save("videa.recovery", 0);
     pdebug("ready");
     clearBanner();
 
