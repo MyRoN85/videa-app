@@ -60,6 +60,11 @@
       var vcode = first(/data-item-id="([A-Za-z0-9]{16})"/, c);
       if (!vcode) continue;
 
+      // A lejátszási lista találatok nem játszhatók le a lejátszóban
+      // (a Videa [XML_004] hibát ad rájuk) – ezeket kihagyjuk.
+      var href = first(/<a href="([^"]*)"/, c);
+      if (/lejatszasilista|playlist/i.test(href)) continue;
+
       var title = first(/<h2 class="title"><a[^>]*?title="([^"]*)"/, c);
       if (!title) title = first(/<h2 class="title"><a[^>]*>([^<]*)</, c);
 

@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v24 · 2026-10-30";
+  var BUILD = "v25 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -90,6 +90,7 @@
     sortMode: "episode",
     hideShort: load("videa.hideShort", true),
     recoveryAttempts: 0,
+    frameLoaded: false,
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -488,7 +489,10 @@
     frame.setAttribute("webkitallowfullscreen", "webkitallowfullscreen");
     frame.setAttribute("mozallowfullscreen", "mozallowfullscreen");
     frame.setAttribute("allow", "autoplay; fullscreen; encrypted-media; picture-in-picture");
-    frame.addEventListener("load", function () { pdebug("iframe betöltve"); });
+    frame.addEventListener("load", function () {
+      state.frameLoaded = true;
+      pdebug("iframe betöltve");
+    });
     pdebug("iframe indít");
 
     var slot = $("player-slot");
@@ -507,6 +511,7 @@
     }
     state.player = null;
     state.playerReady = false;
+    state.frameLoaded = false;
 
     if (state.pollTimer) {
       clearInterval(state.pollTimer);
@@ -542,6 +547,14 @@
       state.recoveryAttempts = attempts;
       pdebug("nincs ready (" + attempts + ")");
       showPdebug();
+
+      // Ha az iframe betöltődött, de a lejátszó nem lett kész, akkor maga a
+      // videó hibás (pl. törölt, lejátszási lista) – ilyenkor nincs értelme
+      // sütit takarítani, csak jelezzük.
+      if (state.frameLoaded) {
+        setBanner("Ez a videó nem indítható (a Videa oldalán hibás). Próbálj másikat.");
+        return;
+      }
 
       if (attempts === 1 && window.FilmezzNative &&
           window.FilmezzNative.clearVideaSession) {
