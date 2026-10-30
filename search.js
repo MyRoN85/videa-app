@@ -96,6 +96,12 @@
     });
   }
 
+  /* Tetszőleges videa.hu oldal letöltése a proxy segítségével
+     (pl. a film kategória a főoldali "friss filmek" listához). */
+  function fetchHtml(url) {
+    return fetchText(url);
+  }
+
   function search(word, lastItemId) {
     return fetchText(buildUrl(word, lastItemId)).then(function (html) {
       var items = parseItems(html);
@@ -110,6 +116,7 @@
     hasProxy: function () { return !!PROXY_BASE; },
     setProxy: function (url) { PROXY_BASE = url || ""; },
     search: search,
+    fetchHtml: fetchHtml,
     parseItems: parseItems,
     buildUrl: buildUrl
   };

@@ -195,6 +195,22 @@ body {
   border-color: rgba(255, 90, 31, 0.5);
 }
 
+.feed { margin-top: 6px; }
+.feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.feed-head h2 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+
 /* ---------- találati lista ---------- */
 .results { display: flex; flex-direction: column; gap: 10px; }
 

@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v30 · 2026-10-30";
+  var BUILD = "v31 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -94,6 +94,7 @@
     lastPlayingFlag: false,
     nextItem: null,
     extraPool: [],
+    feedLoaded: false,
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -196,6 +197,7 @@
 
     if (view === "lib") renderLibrary();
     if (view === "info") refreshInfo();
+    if (view === "search" && state.results.length === 0) showFeed();
 
     // Kilépéskor teljesen lebontjuk a lejátszót: így a WebView elengedi
     // a médiamunkamenetet, és a következő videó tiszta lappal indul.
@@ -204,6 +206,38 @@
     }
 
     window.scrollTo(0, 0);
+  }
+
+  /* ---------------------------------------------------------------- főoldal */
+  var FRESH_URL = "https://videa.hu/kategoriak/film-animacio";
+
+  function loadFresh() {
+    var box = $("feed-list");
+    if (!box) return;
+    if (!window.VideaSearch || !window.VideaSearch.hasProxy()) return;
+
+    box.innerHTML = "<div class='empty'>Betöltés…</div>";
+
+    window.VideaSearch.fetchHtml(FRESH_URL).then(function (html) {
+      var items = window.VideaSearch.parseItems(html).slice(0, 12);
+      box.innerHTML = "";
+      if (!items.length) {
+        box.innerHTML = "<div class='empty'>Most nincs friss film.</div>";
+        return;
+      }
+      items.forEach(function (it) { box.appendChild(makeCard(it, openVideo)); });
+      state.feedLoaded = true;
+    }, function () {
+      box.innerHTML = "<div class='empty'>A friss filmeket most nem sikerült betölteni.</div>";
+    });
+  }
+
+  function showFeed() {
+    var feed = $("feed");
+    if (!feed) return;
+    feed.hidden = false;
+    $("empty").hidden = true;
+    if (!state.feedLoaded) loadFresh();
   }
 
   // ------------------------------------------------------------------ keresés
@@ -316,6 +350,12 @@
 
     var sortbar = $("sortbar");
     if (sortbar) sortbar.hidden = state.results.length === 0;
+
+    // ha vannak találatok, a főoldali "friss filmek" lista elrejtése
+    if (state.results.length) {
+      var feed = $("feed");
+      if (feed) feed.hidden = true;
+    }
   }
 
   function uniqueByVcode(list) {
@@ -349,6 +389,8 @@
       state.loading = false;
       state.mode = searchMode();
       $("results").innerHTML = "";
+      var feedEl = $("feed");
+      if (feedEl) feedEl.hidden = true;
     }
     if (state.loading) return;
 
@@ -993,6 +1035,11 @@
       renderResults();
     });
 
+    $("btn-feed-refresh").addEventListener("click", function () {
+      state.feedLoaded = false;
+      loadFresh();
+    });
+
     $("btn-back").addEventListener("click", function () { go("search"); });
     $("btn-fav").addEventListener("click", toggleFavorite);
 
@@ -1073,6 +1120,7 @@
 
     refreshInfo();
     restoreBackup();
+    showFeed();
 
     // Hibakereső sor: csak hiba esetén jelenik meg magától, vagy ha a cím
     // végére ?debug=1 kerül.
