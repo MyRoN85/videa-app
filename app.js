@@ -9,6 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
+  var BUILD = "v22 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -747,6 +748,7 @@
     }
 
     $("info-error").textContent = state.lastError || "nincs";
+    if ($("info-build")) $("info-build").textContent = BUILD;
   }
 
   // -------------------------------------------------------------------- indítás
