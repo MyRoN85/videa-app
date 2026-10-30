@@ -88,6 +88,23 @@
 
   function clearBanner() { setBanner(""); }
 
+  /* Látható hibakereső sor a lejátszó alatt (ideiglenes). */
+  var pdebugLines = [];
+  function pdebug(msg) {
+    pdebugLines.push(msg);
+    if (pdebugLines.length > 6) pdebugLines.shift();
+    var el = $("pdebug");
+    if (el) el.textContent = pdebugLines.join("  |  ");
+    log("DBG " + msg);
+  }
+
+  // A Videa lejátszó iframe üzeneteit figyeljük (a saját könyvtárunktól
+  // függetlenül), hogy látszódjon, elindult-e egyáltalán a kézfogás.
+  window.addEventListener("message", function (e) {
+    if (!e.data || e.data.type !== "videaPlayerApiMessage") return;
+    pdebug("msg:" + (e.data.event || "?") + " @" + Math.round(performance.now() / 1000) + "s");
+  }, false);
+
   function describeError(err) {
     var msg = (err && err.message) ? err.message : String(err);
     if (/origin error/i.test(msg)) {
@@ -339,6 +356,8 @@
     frame.setAttribute("webkitallowfullscreen", "webkitallowfullscreen");
     frame.setAttribute("mozallowfullscreen", "mozallowfullscreen");
     frame.setAttribute("allow", "autoplay; fullscreen; encrypted-media; picture-in-picture");
+    frame.addEventListener("load", function () { pdebug("iframe betöltve"); });
+    pdebug("iframe indít");
 
     var slot = $("player-slot");
     if (slot && slot.parentNode === wrap) wrap.removeChild(slot);
@@ -390,6 +409,14 @@
         }
       });
       log("player létrehozva", vcode);
+      pdebug("objektum kész");
+
+      var watchdogVideo = vcode;
+      setTimeout(function () {
+        if (state.current && state.current.vcode === watchdogVideo && !state.playerReady) {
+          pdebug("nincs ready 10s után");
+        }
+      }, 10000);
     } catch (e) {
       setBanner("A lejátszó nem indult el: " + e.message);
       log("player hiba", e.message);
@@ -398,6 +425,7 @@
 
   function onPlayerReady() {
     state.playerReady = true;
+    pdebug("ready");
     clearBanner();
 
     if (state.pendingVideo) {

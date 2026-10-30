@@ -298,6 +298,18 @@ body {
 
 .actions { display: flex; gap: 8px; margin: 16px 0 8px; flex-wrap: wrap; }
 
+.pdebug {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 10px 0 2px;
+  word-break: break-word;
+}
+
 .btn {
   flex: 1 1 140px;
   padding: 12px 14px;
