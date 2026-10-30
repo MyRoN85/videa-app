@@ -9,7 +9,7 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
-  var BUILD = "v27 · 2026-10-30";
+  var BUILD = "v28 · 2026-10-30";
   var DEBUG = [];
   function log() {
     DEBUG.push(Array.prototype.join.call(arguments, " "));
@@ -706,17 +706,16 @@
     }
   }
 
-  /* A következő rész megkeresése az aktuális találati listában:
-     ugyanaz a sorozat, és az évad/rész szerint a következő. */
-  function findNextEpisode(item) {
-    if (!window.VideaSort || !state.results.length) return null;
+  /* A következő részek megkeresése az aktuális találati listában:
+     ugyanaz a sorozat, évad/rész szerint növekvő sorrendben. */
+  function findNextEpisodes(item, limit) {
+    if (!window.VideaSort || !state.results.length) return [];
 
     var key = window.VideaSort.series(item.title);
     var current = window.VideaSort.episode(item.title);
-    if (!current) return null;
+    if (!current) return [];
 
-    var best = null;
-    var bestScore = null;
+    var found = [];
 
     state.results.forEach(function (it) {
       if (!it || it.vcode === item.vcode) return;
@@ -727,31 +726,66 @@
       if (ep[0] < current[0]) return;
       if (ep[0] === current[0] && ep[1] <= current[1]) return;
 
-      var score = ep[0] * 10000 + ep[1];
-      if (bestScore === null || score < bestScore) {
-        bestScore = score;
-        best = it;
-      }
+      found.push({ item: it, score: ep[0] * 10000 + ep[1], ep: ep });
     });
 
-    return best;
+    found.sort(function (a, b) { return a.score - b.score; });
+
+    // ugyanaz az epizód ne szerepeljen kétszer (több feltöltés létezhet)
+    var seen = {};
+    var out = [];
+    found.forEach(function (f) {
+      var k = f.ep[0] + "x" + f.ep[1];
+      if (seen[k]) return;
+      seen[k] = true;
+      out.push(f.item);
+    });
+
+    return out.slice(0, limit);
   }
 
+  /* A "Vissza a kereséshez" alatt felsorolt következő részek. */
   function updateNextButton(item) {
-    var btn = $("btn-next");
-    if (!btn) return;
+    var box = $("next-list");
+    if (!box) return;
 
-    state.nextItem = findNextEpisode(item);
-    if (!state.nextItem) {
-      btn.hidden = true;
+    box.innerHTML = "";
+    var list = findNextEpisodes(item, 3);
+
+    if (!list.length) {
+      box.hidden = true;
+      state.nextItem = null;
       return;
     }
 
-    var ep = window.VideaSort ? window.VideaSort.episode(state.nextItem.title) : null;
-    btn.textContent = ep
-      ? "▶ Következő rész: S" + ep[0] + " E" + ep[1]
-      : "▶ Következő rész";
-    btn.hidden = false;
+    var head = document.createElement("h3");
+    head.textContent = "Következő részek";
+    box.appendChild(head);
+
+    list.forEach(function (it) {
+      var ep = window.VideaSort.episode(it.title);
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "next-item";
+
+      var epEl = document.createElement("span");
+      epEl.className = "ep";
+      epEl.textContent = ep ? "S" + ep[0] + " E" + ep[1] : "▶";
+
+      var tt = document.createElement("span");
+      tt.className = "ttl";
+      tt.textContent = it.title;
+
+      btn.appendChild(epEl);
+      btn.appendChild(tt);
+      btn.addEventListener("click", function () { openVideo(it); });
+
+      box.appendChild(btn);
+    });
+
+    box.hidden = false;
+    state.nextItem = list[0];
   }
 
   function updateFavButton() {
@@ -874,10 +908,6 @@
 
     $("btn-retry").addEventListener("click", function () {
       if (state.current) ensurePlayer(state.current.vcode);
-    });
-
-    $("btn-next").addEventListener("click", function () {
-      if (state.nextItem) openVideo(state.nextItem);
     });
     $("btn-reload").addEventListener("click", function () { location.reload(); });
 
