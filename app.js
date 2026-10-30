@@ -88,6 +88,7 @@
     mode: "tag",
     sortMode: "episode",
     hideShort: load("videa.hideShort", true),
+    recoveryAttempts: 0,
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -186,8 +187,10 @@
     if (view === "lib") renderLibrary();
     if (view === "info") refreshInfo();
 
-    if (view !== "player" && state.player && state.playerReady) {
-      try { state.player.pauseVideo(); } catch (e) { log("pause hiba", e.message); }
+    // Kilépéskor teljesen lebontjuk a lejátszót: így a WebView elengedi
+    // a médiamunkamenetet, és a következő videó tiszta lappal indul.
+    if (view !== "player") {
+      destroyPlayer();
     }
 
     window.scrollTo(0, 0);
@@ -462,6 +465,7 @@
 
     addHistory(state.current);
     updateFavButton();
+    state.recoveryAttempts = 0;
     go("player");
     ensurePlayer(item.vcode);
   }
@@ -508,8 +512,47 @@
       state.pollTimer = null;
     }
 
+    // Az iframe-et előbb "kiürítjük", hogy a WebView elengedje a médiát,
+    // és csak utána távolítjuk el. Enélkül a lejátszók egymásra rakódnak.
     var wrap = document.querySelector(".player-wrap");
-    if (wrap) wrap.innerHTML = "";
+    if (!wrap) return;
+
+    var frame = wrap.querySelector("iframe");
+    if (frame) {
+      try { frame.src = "about:blank"; } catch (e) { /* ignore */ }
+      try { frame.parentNode.removeChild(frame); } catch (e) { /* ignore */ }
+    }
+    wrap.innerHTML = "";
+  }
+
+  /* Ha a lejátszó 10 mp alatt nem lesz kész: egyszer újraépítjük, utána
+     (ha kell) takarítunk és újratöltünk – ne a felhasználónak kelljen. */
+  function scheduleWatchdog(vcode) {
+    setTimeout(function () {
+      if (!state.current || state.current.vcode !== vcode) return;
+      if (state.playerReady) return;
+
+      state.recoveryAttempts = (state.recoveryAttempts || 0) + 1;
+      pdebug("nincs ready (" + state.recoveryAttempts + ")");
+
+      if (state.recoveryAttempts === 1) {
+        ensurePlayer(vcode);
+        scheduleWatchdog(vcode);
+        return;
+      }
+
+      showPdebug();
+
+      if (window.FilmezzNative && window.FilmezzNative.hardReset) {
+        setBanner("A lejátszó elakadt – takarítás és újratöltés…", "ok");
+        window.FilmezzNative.hardReset();
+        return;
+      }
+
+      setBanner("A lejátszó nem indult el. Nyomd meg az „Adatok törlése” gombot.");
+      var resetBtn = $("btn-reset");
+      if (resetBtn) resetBtn.hidden = false;
+    }, 10000);
   }
 
   function ensurePlayer(vcode) {
@@ -542,18 +585,7 @@
       });
       log("player létrehozva", vcode);
       pdebug("objektum kész");
-
-      var watchdogVideo = vcode;
-      setTimeout(function () {
-        if (state.current && state.current.vcode === watchdogVideo && !state.playerReady) {
-          pdebug("nincs ready 10s után");
-          showPdebug();
-          setBanner("A lejátszó nem indult el. Nyomd meg az „Adatok törlése” gombot: " +
-            "ez kitakarítja a Videa elakadt állapotát a készüléken.");
-          var resetBtn = $("btn-reset");
-          if (resetBtn) resetBtn.hidden = false;
-        }
-      }, 10000);
+      scheduleWatchdog(vcode);
     } catch (e) {
       setBanner("A lejátszó nem indult el: " + e.message);
       log("player hiba", e.message);
@@ -562,6 +594,7 @@
 
   function onPlayerReady() {
     state.playerReady = true;
+    state.recoveryAttempts = 0;
     pdebug("ready");
     clearBanner();
 
