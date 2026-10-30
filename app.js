@@ -347,6 +347,25 @@
     return frame;
   }
 
+  /* A Videa lejátszó belső állapota (kiválasztott minőség, hibaállapot)
+     átragadhat a következő videóra: egy hibás videó után a jók sem indulnak.
+     Ezért minden videóhoz friss lejátszót készítünk. */
+  function destroyPlayer() {
+    if (state.player) {
+      try { state.player.pauseVideo(); } catch (e) { /* ignore */ }
+    }
+    state.player = null;
+    state.playerReady = false;
+
+    if (state.pollTimer) {
+      clearInterval(state.pollTimer);
+      state.pollTimer = null;
+    }
+
+    var wrap = document.querySelector(".player-wrap");
+    if (wrap) wrap.innerHTML = "";
+  }
+
   function ensurePlayer(vcode) {
     if (typeof window.VIDEA === "undefined" || !state.playerApiLoaded) {
       state.pendingVideo = vcode;
@@ -354,38 +373,26 @@
       return;
     }
 
-    if (!state.player) {
-      var frame = createPlayerFrame(vcode);
-      if (!frame) {
-        setBanner("Nem találom a lejátszó helyét (.player-wrap).");
-        return;
-      }
-      try {
-        state.player = new window.VIDEA.VideaPlayer({
-          iframeID: frame.id,
-          events: {
-            onReady: onPlayerReady,
-            onKeyError: onPlayerKeyError
-          }
-        });
-        log("player létrehozva (iframe mód)", vcode);
-      } catch (e) {
-        setBanner("A lejátszó nem indult el: " + e.message);
-        log("player hiba", e.message);
-      }
+    destroyPlayer();
+
+    var frame = createPlayerFrame(vcode);
+    if (!frame) {
+      setBanner("Nem találom a lejátszó helyét (.player-wrap).");
       return;
     }
 
-    if (state.playerReady) {
-      setBanner("");
-      try {
-        state.player.loadAndStartVideo(vcode);
-        log("loadAndStartVideo", vcode);
-      } catch (e) {
-        log("load hiba", e.message);
-      }
-    } else {
-      state.pendingVideo = vcode;
+    try {
+      state.player = new window.VIDEA.VideaPlayer({
+        iframeID: frame.id,
+        events: {
+          onReady: onPlayerReady,
+          onKeyError: onPlayerKeyError
+        }
+      });
+      log("player létrehozva", vcode);
+    } catch (e) {
+      setBanner("A lejátszó nem indult el: " + e.message);
+      log("player hiba", e.message);
     }
   }
 
@@ -541,6 +548,10 @@
 
     $("btn-back").addEventListener("click", function () { go("search"); });
     $("btn-fav").addEventListener("click", toggleFavorite);
+
+    $("btn-retry").addEventListener("click", function () {
+      if (state.current) ensurePlayer(state.current.vcode);
+    });
     $("btn-reload").addEventListener("click", function () { location.reload(); });
 
     $("btn-open-web").addEventListener("click", function () {
@@ -590,6 +601,13 @@
     }, 8000);
 
     refreshInfo();
+
+    // PWA: ha támogatott, regisztráljuk a service workert (kitűzhető app).
+    if ("serviceWorker" in navigator && location.protocol === "https:") {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () { /* csendben */ });
+      });
+    }
   }
 
   if (document.readyState === "loading") {
