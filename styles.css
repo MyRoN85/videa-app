@@ -141,6 +141,41 @@ body {
   color: #b9f4d2;
 }
 
+/* ---------- címkék ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 4px 0 10px;
+}
+.chips button {
+  background: var(--surface);
+  border: 1px solid #242c3b;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.chips button:active { background: var(--accent-soft); border-color: var(--accent); }
+
+.sortbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  padding: 2px 0 10px;
+}
+.sortbar select {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid #242c3b;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+}
+
 /* ---------- találati lista ---------- */
 .results { display: flex; flex-direction: column; gap: 10px; }
 

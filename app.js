@@ -39,6 +39,9 @@
     query: "",
     nextPage: 1,
     totalHits: 0,
+    hasMore: false,
+    lastItemId: null,
+    mode: "tag",
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -57,8 +60,10 @@
 
   function thumbUrl(item) {
     if (!item) return "";
-    if (item.thumbnail) return item.thumbnail + ".jpg";
-    if (item.still) return item.still + ".jpg";
+    // A Videa thumbnail URL-jei kiterjesztés nélkül is képet adnak,
+    // a ".jpg" hozzáfűzése 404-et eredményez.
+    if (item.thumbnail) return item.thumbnail;
+    if (item.still) return item.still;
     return "";
   }
 
@@ -178,8 +183,7 @@
 
     $("empty").hidden = state.results.length > 0;
     var more = $("btn-more");
-    more.hidden = state.results.length === 0 ||
-      (state.totalHits > 0 && state.results.length >= state.totalHits);
+    more.hidden = state.results.length === 0 || !state.hasMore;
     more.disabled = state.loading;
     more.textContent = state.loading ? "Betöltés…" : "További találatok";
   }
@@ -196,6 +200,10 @@
     return out;
   }
 
+  function searchMode() {
+    return (window.VideaSearch && window.VideaSearch.hasProxy()) ? "search" : "tag";
+  }
+
   function runSearch(reset) {
     var input = $("search-input");
     var q = (input.value || "").trim();
@@ -204,37 +212,87 @@
       if (!q) return;
       state.query = q;
       state.nextPage = 1;
+      state.lastItemId = null;
       state.results = [];
       state.totalHits = 0;
+      state.hasMore = false;
+      state.loading = false;
+      state.mode = searchMode();
       $("results").innerHTML = "";
+      $("sortbar").hidden = (state.mode !== "tag");
     }
     if (state.loading) return;
 
+    var reqId = (state.reqId = (state.reqId || 0) + 1);
+    state.loading = true;
+    $("btn-more").textContent = "Betöltés…";
+    $("btn-more").disabled = true;
+    clearBanner();
+
+    if (state.mode === "search") runSiteSearch(reqId);
+    else runTagSearch(reqId);
+  }
+
+  /* Valódi szabadszavas keresés a videa.hu saját keresőjén (proxy szükséges). */
+  function runSiteSearch(reqId) {
+    window.VideaSearch.search(state.query, state.lastItemId).then(function (res) {
+      if (reqId !== state.reqId) return;
+      state.results = uniqueByVcode(state.results.concat(res.items));
+      state.lastItemId = res.lastItemId;
+      state.hasMore = res.items.length > 0;
+      state.loading = false;
+      renderResults();
+      log("site ok", state.query, "got", res.items.length);
+    }, function (err) {
+      if (reqId !== state.reqId) return;
+      state.loading = false;
+      state.lastError = (err && err.message) ? err.message : String(err);
+      state.hasMore = false;
+      renderResults();
+      setBanner("A keresés nem sikerült: " + state.lastError +
+        ". Ellenőrizd a proxyt (search.js → PROXY_BASE) és a hálózatot.");
+      refreshInfo();
+    });
+  }
+
+  /* Tartalék: a szabadszavas keresés halott az OpenAPI-ban, ezért címkére keresünk. */
+  function runTagSearch(reqId) {
     if (!state.api) {
+      state.loading = false;
+      renderResults();
       setBanner("Az OpenAPI még nem áll készen. Ha ez az üzenet marad, " +
         "valószínűleg nem töltődött be a videa.hu scriptje (hálózat, blokkoló).");
       return;
     }
 
-    var page = reset ? 1 : state.nextPage;
-    state.loading = true;
-    if (!reset) { $("btn-more").textContent = "Betöltés…"; $("btn-more").disabled = true; }
-    clearBanner();
+    var page = state.nextPage;
+    var sort = ($("sort-select") && $("sort-select").value) || "upload_date";
 
-    state.api.searchVideos(state.query, page).then(function (res) {
+    state.api.getTagVideos(state.query, sort, page).then(function (res) {
+      if (reqId !== state.reqId) return;
       var vids = (res && res.videos) || [];
       state.totalHits = res && res.totalhits != null ? Number(res.totalhits) : vids.length;
       state.results = uniqueByVcode(state.results.concat(vids));
       state.nextPage = page + 1;
+      state.hasMore = vids.length > 0 && state.results.length < state.totalHits;
       state.loading = false;
       renderResults();
-      log("search ok", state.query, "page", page, "hits", state.totalHits, "got", vids.length);
+      log("tag ok", state.query, sort, "page", page, "hits", state.totalHits, "got", vids.length);
     }, function (err) {
+      if (reqId !== state.reqId) return;
       state.loading = false;
       state.lastError = (err && err.message) ? err.message : String(err);
+      state.hasMore = false;
+      if (/invalid id param/i.test(state.lastError)) {
+        setBanner("Nincs „" + state.query + "” nevű címke a Videán. Szabadszavas kereséshez " +
+          "proxy kell (README → Keresés) – proxy nélkül csak címkére tudunk keresni.");
+        renderResults();
+        refreshInfo();
+        return;
+      }
       renderResults();
       setBanner(describeError(err));
-      log("search hiba", state.lastError);
+      log("tag hiba", state.lastError);
       refreshInfo();
     });
   }
@@ -443,6 +501,18 @@
     });
 
     $("btn-more").addEventListener("click", function () { runSearch(false); });
+
+    $("chips").addEventListener("click", function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest("button[data-tag]") : null;
+      if (!btn) return;
+      $("search-input").value = btn.getAttribute("data-tag");
+      runSearch(true);
+    });
+
+    $("sort-select").addEventListener("change", function () {
+      if (state.query) runSearch(true);
+    });
+
     $("btn-back").addEventListener("click", function () { go("search"); });
     $("btn-fav").addEventListener("click", toggleFavorite);
     $("btn-reload").addEventListener("click", function () { location.reload(); });
