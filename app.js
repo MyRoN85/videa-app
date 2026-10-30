@@ -87,6 +87,7 @@
     lastItemId: null,
     mode: "tag",
     sortMode: "episode",
+    hideShort: load("videa.hideShort", true),
     loading: false,
     results: [],
     favorites: load("videa.favorites", []),
@@ -270,6 +271,24 @@
     var list = state.results.slice();
     if (state.sortMode !== "site" && window.VideaSort) {
       list = window.VideaSort.sortResults(list);
+    }
+
+    var filtered = window.VideaSort
+      ? window.VideaSort.filterShorts(list, state.hideShort)
+      : { list: list, hidden: 0 };
+    list = filtered.list;
+
+    var shortsBtn = $("btn-shorts");
+    if (shortsBtn) {
+      if (!state.hideShort) {
+        shortsBtn.textContent = "Rövidek: mind";
+      } else if (filtered.hidden) {
+        shortsBtn.textContent = "Elrejtve " + filtered.hidden +
+          " (<" + Math.round(filtered.threshold / 60) + "p)";
+      } else {
+        shortsBtn.textContent = "Rövidek elrejtve";
+      }
+      shortsBtn.classList.toggle("on", !!state.hideShort);
     }
 
     list.forEach(function (item) {
@@ -701,6 +720,12 @@
 
     $("sort-select").addEventListener("change", function () {
       state.sortMode = $("sort-select").value;
+      renderResults();
+    });
+
+    $("btn-shorts").addEventListener("click", function () {
+      state.hideShort = !state.hideShort;
+      save("videa.hideShort", state.hideShort);
       renderResults();
     });
 

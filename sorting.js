@@ -61,6 +61,84 @@
       .join(" ");
   }
 
+  function durationSeconds(d) {
+    var parts = String(d || "").trim().split(":");
+    var s = 0;
+    for (var i = 0; i < parts.length; i++) {
+      var n = parseInt(parts[i].replace(/\D/g, ""), 10);
+      if (isNaN(n)) return 0;
+      s = s * 60 + n;
+    }
+    return s;
+  }
+
+  function medianOf(nums) {
+    if (!nums.length) return 0;
+    var a = nums.slice().sort(function (x, y) { return x - y; });
+    var mid = Math.floor(a.length / 2);
+    return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+  }
+
+  /* Rövid (junk) videók kiszűrése.
+
+     A jellemző hosszt a HOSSZÚ videókból (5 perc felett) számoljuk mediánként,
+     különben a sok 2 másodperces szemét lehúzná a mediánt, és semmit nem
+     szűrne.
+
+     Küszöb = a jellemző hossz fele, de legfeljebb 30 perc és legalább 10 perc.
+     Így egy 45 perces részekből álló sorozatnál a 30 perces rész is megjelenik,
+     a 2 perces előzetes viszont nem.
+     Rövid tartalmak keresésénél (pl. "trailer") csak a 15 másodpercesnél
+     rövidebbeket dobjuk. */
+  /* Előzetes / klip / részlet – ezek nem teljes filmek vagy részek. */
+  var TRAILER_RE = /(előzetes|elozetes|trailer|teaser|részlet|reszlet|klip|clip|behind the scenes|kulissza|interjú|interju|promo\b)/i;
+
+  function isTrailer(title) {
+    return TRAILER_RE.test(String(title || ""));
+  }
+
+  function filterShorts(list, hide) {
+    if (!hide) return { list: list, hidden: 0, threshold: 0 };
+
+    var all = [];
+    var longs = [];
+    list.forEach(function (it) {
+      var s = durationSeconds(it.duration);
+      if (s > 0) {
+        all.push(s);
+        if (s >= 300) longs.push(s);
+      }
+    });
+
+    var base = longs.length >= 3 ? medianOf(longs) : medianOf(all);
+    if (!base) return { list: list, hidden: 0, threshold: 0 };
+
+    var threshold;
+    if (base < 900) {
+      threshold = 15;                        // rövid tartalom: csak a törmelék
+    } else {
+      threshold = Math.min(30 * 60, Math.max(10 * 60, base / 2));
+    }
+
+    // Ha a találatok többsége előzetes, akkor épp azt keresi valaki –
+    // olyankor nem szűrünk cím alapján.
+    var trailerCount = 0;
+    list.forEach(function (it) { if (isTrailer(it.title)) trailerCount++; });
+    var dropTrailers = trailerCount <= Math.max(2, list.length * 0.6);
+
+    var hidden = 0;
+    var kept = [];
+
+    list.forEach(function (it) {
+      if (dropTrailers && isTrailer(it.title)) { hidden++; return; }
+      var s = durationSeconds(it.duration);
+      if (s > 0 && s < threshold) { hidden++; return; }
+      kept.push(it);
+    });
+
+    return { list: kept, hidden: hidden, threshold: threshold };
+  }
+
   function sortResults(list) {
     var order = {};
     var next = 0;
@@ -91,6 +169,12 @@
     return rows.map(function (r) { return r.item; });
   }
 
-  root.VideaSort = { sortResults: sortResults, episode: episode, series: series };
+  root.VideaSort = {
+    sortResults: sortResults,
+    filterShorts: filterShorts,
+    durationSeconds: durationSeconds,
+    episode: episode,
+    series: series
+  };
   if (typeof module !== "undefined" && module.exports) module.exports = root.VideaSort;
 })(typeof window !== "undefined" ? window : globalThis);
