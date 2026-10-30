@@ -26,6 +26,50 @@
   }
   function save(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+    syncBackup();
+  }
+
+  /* A kedvencek/előzmények tükrözése a natív tárolóba, hogy az „Adatok
+     törlése” (ami a WebView teljes tárolóját viszi) ne veszítse el őket. */
+  function syncBackup() {
+    if (!(window.FilmezzNative && window.FilmezzNative.saveBackup)) return;
+    try {
+      window.FilmezzNative.saveBackup(JSON.stringify({
+        favorites: state.favorites,
+        history: state.history,
+        ts: Date.now()
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  function restoreBackup() {
+    if (!(window.FilmezzNative && window.FilmezzNative.loadBackup)) return;
+
+    var raw = "";
+    try { raw = window.FilmezzNative.loadBackup() || ""; } catch (e) { return; }
+    if (!raw) return;
+
+    var backup = null;
+    try { backup = JSON.parse(raw); } catch (e) { return; }
+    if (!backup) return;
+
+    var restored = false;
+
+    if (backup.favorites && backup.favorites.length && state.favorites.length === 0) {
+      state.favorites = backup.favorites;
+      try { localStorage.setItem("videa.favorites", JSON.stringify(state.favorites)); } catch (e) { /* ignore */ }
+      restored = true;
+    }
+    if (backup.history && backup.history.length && state.history.length === 0) {
+      state.history = backup.history;
+      try { localStorage.setItem("videa.history", JSON.stringify(state.history)); } catch (e) { /* ignore */ }
+      restored = true;
+    }
+
+    if (restored) {
+      renderLibrary();
+      updateFavButton();
+    }
   }
 
   var state = {
@@ -149,10 +193,12 @@
   }
 
   // ------------------------------------------------------------------ keresés
-  function makeCard(item, onOpen) {
-    var card = document.createElement("button");
-    card.type = "button";
+  function makeCard(item, onOpen, onDelete) {
+    // div, nem button: így a törlés gomb beágyazható (button a buttonban nem lehet)
+    var card = document.createElement("div");
     card.className = "card";
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
 
     var thumb = document.createElement("div");
     thumb.className = "card-thumb";
@@ -191,7 +237,28 @@
 
     card.appendChild(thumb);
     card.appendChild(body);
+
     card.addEventListener("click", function () { onOpen(item); });
+    card.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onOpen(item);
+      }
+    });
+
+    if (onDelete) {
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "card-delete";
+      del.setAttribute("aria-label", "Törlés");
+      del.title = "Törlés";
+      del.textContent = "×";
+      del.addEventListener("click", function (e) {
+        e.stopPropagation();
+        onDelete(item);
+      });
+      card.appendChild(del);
+    }
 
     return card;
   }
@@ -201,8 +268,8 @@
     box.innerHTML = "";
 
     var list = state.results.slice();
-    if (state.sortMode !== "site") {
-      list.sort(function (a, b) { return naturalCompare(a.title, b.title); });
+    if (state.sortMode !== "site" && window.VideaSort) {
+      list = window.VideaSort.sortResults(list);
     }
 
     list.forEach(function (item) {
@@ -229,33 +296,6 @@
       out.push(v);
     });
     return out;
-  }
-
-  /* Természetes rendezés: az "S2 E08" a "S2 E021" elé kerül, mert a számokat
-     számként hasonlítja (a sima ábécé-sorrend az E021-et tenné előre). */
-  function sortKey(s) {
-    return String(s || "").toLowerCase()
-      .replace(/[áàâä]/g, "a").replace(/[éèêë]/g, "e").replace(/[íìîï]/g, "i")
-      .replace(/[óòôöő]/g, "o").replace(/[úùûüű]/g, "u").replace(/ç/g, "c");
-  }
-
-  function naturalCompare(a, b) {
-    var ax = sortKey(a).match(/(\d+|\D+)/g) || [];
-    var bx = sortKey(b).match(/(\d+|\D+)/g) || [];
-    var n = Math.max(ax.length, bx.length);
-    for (var i = 0; i < n; i++) {
-      var av = ax[i], bv = bx[i];
-      if (av === undefined) return -1;
-      if (bv === undefined) return 1;
-      var an = /^\d+$/.test(av), bn = /^\d+$/.test(bv);
-      if (an && bn) {
-        var d = parseInt(av, 10) - parseInt(bv, 10);
-        if (d) return d;
-      } else if (av !== bv) {
-        return av < bv ? -1 : 1;
-      }
-    }
-    return 0;
   }
 
   function searchMode() {
@@ -559,14 +599,30 @@
   }
 
   // ------------------------------------------------------------------ könyvtár
+  function removeFromList(listName, vcode) {
+    state[listName] = state[listName].filter(function (x) { return x.vcode !== vcode; });
+    save("videa." + listName, state[listName]);
+    renderLibrary();
+    if (listName === "favorites") updateFavButton();
+  }
+
   function renderLibrary() {
     var favBox = $("fav-list");
     var histBox = $("history-list");
     favBox.innerHTML = "";
     histBox.innerHTML = "";
 
-    state.favorites.forEach(function (item) { favBox.appendChild(makeCard(item, openVideo)); });
-    state.history.forEach(function (item) { histBox.appendChild(makeCard(item, openVideo)); });
+    state.favorites.forEach(function (item) {
+      favBox.appendChild(makeCard(item, openVideo, function (it) {
+        removeFromList("favorites", it.vcode);
+      }));
+    });
+
+    state.history.forEach(function (item) {
+      histBox.appendChild(makeCard(item, openVideo, function (it) {
+        removeFromList("history", it.vcode);
+      }));
+    });
 
     $("fav-empty").hidden = state.favorites.length > 0;
     $("history-empty").hidden = state.history.length > 0;
@@ -692,8 +748,7 @@
     }, 8000);
 
     refreshInfo();
-
-    // PWA: ha támogatott, regisztráljuk a service workert (kitűzhető app).
+    restoreBackup();
     if ("serviceWorker" in navigator && location.protocol === "https:") {
       window.addEventListener("load", function () {
         navigator.serviceWorker.register("sw.js").catch(function () { /* csendben */ });

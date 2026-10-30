@@ -8,10 +8,41 @@ tárhelyre felmásolható.
 videa-app/
 ├─ index.html        az app (ebben van a két API kulcs is)
 ├─ app.js            logika: keresés, lejátszó, kedvencek, előzmények
+├─ search.js         szabadszavas keresés a videa.hu-n (proxyval)
 ├─ styles.css        mobilra tervezett sötét felület
+├─ manifest.json     PWA: név, ikonok, teljes képernyős indítás
+├─ sw.js             service worker (offline váz)
+├─ icon-*.png        app ikonok
 ├─ diagnosztika.html önálló tesztoldal: működik-e a kulcs erről a címről?
+├─ proxy/            a kereséshez szükséges serverless proxy (Cloudflare / Vercel)
 └─ README.md
 ```
+
+## Telepítés telefonra (PWA – „app" a kezdőképernyőn)
+
+Az oldal már tartalmazza, ami ehhez kell (`manifest.json`, service worker, ikonok).
+Telefonon:
+
+1. Nyisd meg Chrome-ban: `https://videa-app.vercel.app/`
+2. Menü (⋮) → **„Alkalmazás telepítése"** vagy **„Hozzáadás a kezdőképernyőhöz"**
+3. Utána saját ikonnal indítható, **böngészősáv nélkül**, teljes képernyőn.
+
+Ha ez megvan, a telefonon úgy viselkedik, mint egy app. Az igazi APK ehhez képest
+csak annyi pluszt ad, hogy a Play Store-ból telepíthető – a működés ugyanez.
+
+## Egy Videa-könyvtárhiba, amit meg kellett kerülni
+
+A PlayerAPI `divToLoad` módja **elhasal, ha a lejátszót nem a script betöltésekor,
+hanem később (pl. kattintásra) hozod létre**:
+
+```
+Uncaught TypeError: Cannot read properties of null (reading 'src')
+```
+
+Oka: a könyvtár a lejátszó létrehozásakor `document.currentScript.src`-re hivatkozik,
+ami csak a script futása közben nem `null`. Megoldás: az iframe-et magunk készítjük el
+(`https://videa.hu/player?v=<VCODE>&enableJsApi=1&apiKey=<KULCS>`), és a könyvtárat
+`iframeID` móddal használjuk – ez nem érinti a `currentScript`-et.
 
 ## Miért kell hosztolni? (ezt nem lehet megúszni)
 
@@ -118,7 +149,40 @@ Ezért az app a beírt szót **címkeként** keresi. Ha nincs ilyen címke, a sz
 Lapozás: az `offset` **oldalszám** (0-tól), a `hits` 10–50 között állítható.
 A `totalhits` 1000-nél „megáll” (ennyi a szerver oldali plafon).
 
-## Következő lépések (ha a fentiek zöldek)
+## Android APK („filmezz")
+
+Az `android/` mappa egy natív **WebView-tokot** tartalmaz: saját ikon (FlashTV – Play),
+saját név („filmezz"), vissza gomb, teljes képernyős videó. A tartalmat a
+`https://videa-app.vercel.app/` oldalról tölti, ezért a webes javítások
+**újratelepítés nélkül** megjelennek benne.
+
+A build **GitHub Actions-szel** fut, tehát nem kell Android Studio vagy SDK a gépre:
+
+1. A workflow minden `android/**` módosításnál lefut (`.github/workflows/android.yml`).
+2. A kész APK a **Releases** alatt jelenik meg, `apk-latest` címmel:
+   `https://github.com/MyRoN85/videa-app/releases/download/apk-latest/app-debug.apk`
+3. Telefonon: engedélyezd az ismeretlen forrásból telepítést, majd nyisd meg az APK-t.
+
+Technikai adatok: `hu.filmezz.app`, minSdk 24 (Android 7), targetSdk 34, függőség nélküli
+(AndroidX nélküli) build – így gyors és kevés helyen tud elromlani.
+
+### Helyi build (opcionális)
+
+Ha a gépen van Android SDK és JDK 17/21, az APK helyben is megépíthető:
+
+```powershell
+$env:JAVA_HOME      = "<jdk-17-vagy-21>"
+$env:ANDROID_HOME   = "$env:LOCALAPPDATA\Android\Sdk"
+$env:GRADLE_USER_HOME = "<a projekt melletti mappa>"
+cd android
+gradle assembleDebug
+```
+
+Az eredmény: `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+A debug kulcstár a projektben van (`android/keystore/debug.keystore`, jelszó: `android`),
+így a build akkor is működik, ha a felhasználói profil nem írható, és a frissítések
+**ugyanazzal az aláírással** települnek egymásra.
 
 1. **Capacitor váz**: `androidScheme`, splash, vissza gomb, fullscreen kezelés.
 2. Fullscreen: Androidon `WebChromeClient.onShowCustomView` – ezt natívan kell megoldani.

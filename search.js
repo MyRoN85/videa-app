@@ -10,7 +10,7 @@
 (function (root) {
   "use strict";
 
-  var PROXY_BASE = "https://videa-app.vercel.app/api/search?url=";   // pl. "https://videa-proxy.myron85.workers.dev/?url="
+  var PROXY_BASE = "";   // pl. "https://videa-proxy.myron85.workers.dev/?url="
 
   var LAZY = "https://videa.hu/lazy/kereses/";
 

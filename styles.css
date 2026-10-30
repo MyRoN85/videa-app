@@ -183,6 +183,7 @@ body {
 .results { display: flex; flex-direction: column; gap: 10px; }
 
 .card {
+  position: relative;
   display: grid;
   grid-template-columns: 132px 1fr;
   gap: 12px;
@@ -195,6 +196,31 @@ body {
   color: inherit;
   font: inherit;
   width: 100%;
+}
+
+.card-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid #2a3346;
+  background: rgba(11, 13, 18, 0.82);
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.card-delete:active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
 }
 .card:active { background: var(--surface-2); }
 
