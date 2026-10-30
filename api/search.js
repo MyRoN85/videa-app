@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     const body = await upstream.text();
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=300");
-    return res.status(res.status).send(body);
+    return res.status(upstream.status).send(body);
   } catch (e) {
     return res.status(502).send("proxy error: " + e.message);
   }
