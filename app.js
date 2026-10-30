@@ -322,6 +322,31 @@
     ensurePlayer(item.vcode);
   }
 
+  /* A PlayerAPI "divToLoad" módja elhasal, mert a könyvtár a lejátszó
+     létrehozásakor document.currentScript.src-re hivatkozik – az viszont
+     kattintásra már null. Ezért mi készítjük el az iframe-et, és az
+     "iframeID" módot használjuk, ami nem érinti a currentScript-et. */
+  function createPlayerFrame(vcode) {
+    var wrap = document.querySelector(".player-wrap");
+    if (!wrap) return null;
+
+    var frame = document.createElement("iframe");
+    frame.id = "videa-player-frame";
+    frame.src = "https://videa.hu/player?v=" + encodeURIComponent(vcode) +
+      "&enableJsApi=1&apiKey=" + encodeURIComponent((window.VIDEA_KEYS || {}).player || "");
+    frame.setAttribute("frameborder", "0");
+    frame.setAttribute("allowfullscreen", "allowfullscreen");
+    frame.setAttribute("webkitallowfullscreen", "webkitallowfullscreen");
+    frame.setAttribute("mozallowfullscreen", "mozallowfullscreen");
+    frame.setAttribute("allow", "autoplay; fullscreen; encrypted-media; picture-in-picture");
+
+    var slot = $("player-slot");
+    if (slot && slot.parentNode === wrap) wrap.removeChild(slot);
+
+    wrap.appendChild(frame);
+    return frame;
+  }
+
   function ensurePlayer(vcode) {
     if (typeof window.VIDEA === "undefined" || !state.playerApiLoaded) {
       state.pendingVideo = vcode;
@@ -330,19 +355,20 @@
     }
 
     if (!state.player) {
-      if (!$("player-slot")) return;
+      var frame = createPlayerFrame(vcode);
+      if (!frame) {
+        setBanner("Nem találom a lejátszó helyét (.player-wrap).");
+        return;
+      }
       try {
         state.player = new window.VIDEA.VideaPlayer({
-          divToLoad: "player-slot",
-          width: "480",
-          height: "270",
-          videoId: vcode,
+          iframeID: frame.id,
           events: {
             onReady: onPlayerReady,
             onKeyError: onPlayerKeyError
           }
         });
-        log("player létrehozva", vcode);
+        log("player létrehozva (iframe mód)", vcode);
       } catch (e) {
         setBanner("A lejátszó nem indult el: " + e.message);
         log("player hiba", e.message);

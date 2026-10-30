@@ -33,7 +33,7 @@
   }
   .ok  { color: #3ddc84; }
   .bad { color: #ff5252; }
-  #player-slot { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; }
+  #player-slot { width: 100%; max-width: 900px; aspect-ratio: 16/9; max-height: 55vh; background: #000; border-radius: 12px; overflow: hidden; }
   #player-slot iframe { width: 100%; height: 100%; border: 0; display: block; }
 </style>
 </head>
@@ -142,14 +142,22 @@
     status.textContent = "lejátszó létrehozása…";
     status.className = "muted";
 
+    // Az iframe-et nekünk kell létrehozni: a könyvtár "divToLoad" módja
+    // document.currentScript-re támaszkodik, ami kattintásra már null.
     var slot = document.getElementById("player-slot");
-    slot.innerHTML = '<div id="ps2"></div>';
+    slot.innerHTML = "";
+    var frame = document.createElement("iframe");
+    frame.id = "diag-frame";
+    frame.src = "https://videa.hu/player?v=" + encodeURIComponent(vcode) +
+      "&enableJsApi=1&apiKey=" + encodeURIComponent(PLAYER_KEY);
+    frame.setAttribute("frameborder", "0");
+    frame.setAttribute("allowfullscreen", "allowfullscreen");
+    frame.setAttribute("allow", "autoplay; fullscreen; encrypted-media");
+    slot.appendChild(frame);
+
     try {
       window.__p = new VIDEA.VideaPlayer({
-        divToLoad: "ps2",
-        width: "480",
-        height: "270",
-        videoId: vcode,
+        iframeID: "diag-frame",
         events: {
           onReady: function () {
             status.textContent = "SIKER – a lejátszó kész";
